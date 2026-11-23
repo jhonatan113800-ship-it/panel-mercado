@@ -44,7 +44,19 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
 input[type=text]{font:16px Inter,sans-serif;width:100%;min-height:44px;padding:0 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
 label.ck{display:flex;gap:8px;align-items:center;min-height:36px;cursor:pointer}
 .note{color:var(--mute);font-size:12.5px}
+.kpi b{display:block}.kpi b span{display:inline}
 @media(max-width:600px){#map{height:70vh;min-height:520px}.legend i{width:90px}}
+.tbl{margin:16px max(2vw,12px) 0}.tblhead{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;margin-bottom:6px}.tblhead h2{margin:0}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:14.5px}
+th{font:600 13px Inter,sans-serif;color:var(--mute);text-align:right;padding:8px 10px;border-bottom:2px solid var(--line);cursor:pointer;white-space:nowrap;user-select:none}
+th.on{color:var(--ink)}th.l,td.l{text-align:left}
+td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+td.l{font-weight:600;max-width:240px;overflow:hidden;text-overflow:ellipsis}
+td.l .lv{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--up);margin-right:7px;vertical-align:1px}
+td.l .nl{display:inline-block;width:7px;margin-right:7px}
+tbody tr:hover{background:color-mix(in srgb,var(--ink) 5%,transparent)}
+@media(max-width:600px){table{font-size:13px}td,th{padding:7px 6px}}
 @media(prefers-reduced-motion:reduce){.t{transition:none}}
 </style>
 </head>
@@ -72,6 +84,14 @@ label.ck{display:flex;gap:8px;align-items:center;min-height:36px;cursor:pointer}
 <div id="status"><span><span class="dot" id="wsDot"></span><span id="wsTxt">Conectando…</span></span><span id="upd"></span><span class="legend" id="leg">−5% <i></i> +5%</span></div>
 <div id="map" aria-label="Mapa de calor del mercado cripto"></div>
 <div id="tip"></div>
+<div class="tbl card">
+  <div class="tblhead"><h2>Las criptos más grandes</h2>
+    <div class="seg" role="group" aria-label="Cuántas mostrar"><button data-top="10">10</button><button data-top="20">20</button><button data-top="30">30</button><button data-top="50">50</button></div></div>
+  <div class="scroll"><table>
+    <thead><tr><th data-k="name" class="l">Nombre</th><th data-k="cap">Capitalización</th><th data-k="price">Último</th><th data-k="open">Apertura 24 h</th><th data-k="h24">Máximo 24 h</th><th data-k="l24">Mínimo 24 h</th><th data-k="ch24">Var. 24 h</th><th data-k="p24">% 24 h</th><th data-k="p7d">% 7 d</th></tr></thead>
+    <tbody id="tb"></tbody></table></div>
+  <p class="note">Ordenada por capitalización (respeta los filtros de stablecoins y tokens envueltos). Toca un encabezado para ordenar. Punto verde = precio en vivo de Binance. En cripto no hay apertura ni cierre: "apertura" es el precio de hace 24 horas.</p>
+</div>
 <div class="below">
   <div class="card"><h2 id="gT">Mayores subidas</h2><div id="gain"></div></div>
   <div class="card"><h2 id="lT">Mayores bajadas</h2><div id="lose"></div></div>
@@ -107,8 +127,8 @@ async function loadCG(){
     const old=bySym;bySym={};
     coins=j.map(c=>{const sym=c.symbol.toUpperCase();const o={id:c.id,sym,name:c.name,cap:c.market_cap||0,price:c.current_price,
       p1h:c.price_change_percentage_1h_in_currency,p24:c.price_change_percentage_24h_in_currency??c.price_change_percentage_24h,p7d:c.price_change_percentage_7d_in_currency,
-      vol:c.total_volume,rank:c.market_cap_rank,stable:isStable(c),wrap:isWrap(c),live:false};
-      const p=old[sym];if(p&&p.live&&p.id===o.id){o.price=p.price;o.p24=p.p24;o.live=true;o.open=p.open}
+      vol:c.total_volume,rank:c.market_cap_rank,h24:c.high_24h,l24:c.low_24h,ch24:c.price_change_24h,open:(c.current_price!=null&&c.price_change_24h!=null)?c.current_price-c.price_change_24h:null,stable:isStable(c),wrap:isWrap(c),live:false};
+      const p=old[sym];if(p&&p.live&&p.id===o.id){o.price=p.price;o.p24=p.p24;o.live=true;o.open=p.open;o.h24=p.h24;o.l24=p.l24;o.ch24=p.ch24}
       if(!bySym[sym])bySym[sym]=o;return o});
     lastUpd=new Date();dirty=true;
   }catch(e){$('upd').textContent='No se pudo conectar con CoinGecko. Reintento en 1 min.'}
@@ -125,7 +145,7 @@ function openWS(){
       const p=+t.c,o=+t.o;if(!p||!o)continue;
       /* descarta pares que no sean la misma moneda (precio muy distinto al de CoinGecko) */
       if(!c.live&&c.price&&Math.abs(p/c.price-1)>0.15)continue;
-      c.price=p;c.open=o;c.p24=(p-o)/o*100;c.live=true}
+      c.price=p;c.open=o;c.ch24=p-o;c.p24=(p-o)/o*100;c.h24=+t.h;c.l24=+t.l;c.live=true}
     liveCount=coins.filter(c=>c.live).length;lastUpd=new Date();dirty=true};
   ws.onclose=()=>{if(ws!==me)return;ws=null;$('wsDot').className='dot';$('wsTxt').textContent='Streaming desconectado, reintentando…';for(const c of coins)c.live=false;setTimeout(openWS,5000)};
   ws.onerror=()=>{try{me.close()}catch(e){}};
@@ -181,9 +201,25 @@ function summary(a){
   $('lose').innerHTML=s.slice(-6).reverse().filter(c=>chg(c)<0).map(row).join('')||'<p class="note">Nada en rojo en este periodo.</p>';
   const pl={'1h':'1 h','24h':'24 h','7d':'7 d'}[period];$('gT').textContent='Mayores subidas · '+pl;$('lT').textContent='Mayores bajadas · '+pl;
   $('leg').innerHTML=`−${RANGE[period]}% <i></i> +${RANGE[period]}%`;
+  table(a);
   if(liveCount)$('wsTxt').textContent=`En vivo vía Binance: ${liveCount} monedas`;
   $('upd').textContent=lastUpd?'Última actualización '+lastUpd.toLocaleTimeString('es-PE'):'';
 }
+
+/* ---------- Tabla ---------- */
+let TOP=ls.get('cr_top',20),sortK=null,sortDir=-1;
+const sgnm=v=>v==null||isNaN(v)?'—':(v>0?'+':'−')+money(Math.abs(v)).slice(1).replace(/^/,'$');
+function table(a){
+  let rows=[...a].sort((x,y)=>y.cap-x.cap).slice(0,TOP);
+  if(sortK)rows.sort((x,y)=>{const p=x[sortK],q=y[sortK];if(sortK==='name')return sortDir*String(q||'').localeCompare(String(p||''));return sortDir*((q??-Infinity)-(p??-Infinity))});
+  const cl=v=>v>0?'up':v<0?'dn':'';
+  $('tb').innerHTML=rows.map(c=>`<tr><td class="l" title="${esc(c.sym)}">${c.live?'<span class="lv"></span>':'<span class="nl"></span>'}${esc(c.name)} <span class="note">${esc(c.sym)}</span></td><td>${big(c.cap)}</td><td>${money(c.price)}</td><td>${money(c.open)}</td><td>${money(c.h24)}</td><td>${money(c.l24)}</td><td class="${cl(c.ch24)}">${sgnm(c.ch24)}</td><td class="${cl(c.p24)}">${pct(c.p24)}</td><td class="${cl(c.p7d)}">${pct(c.p7d)}</td></tr>`).join('')||'<tr><td class="l" colspan="9">Cargando…</td></tr>';
+  document.querySelectorAll('th[data-k]').forEach(th=>th.classList.toggle('on',th.dataset.k===sortK));
+}
+document.querySelectorAll('th[data-k]').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(k==='cap'){sortK=null}else if(sortK===k){sortDir=-sortDir}else{sortK=k;sortDir=-1}dirty=true});
+function syncTop(){document.querySelectorAll('[data-top]').forEach(b=>b.setAttribute('aria-pressed',+b.dataset.top===TOP))}
+document.querySelectorAll('[data-top]').forEach(b=>b.onclick=()=>{TOP=+b.dataset.top;ls.set('cr_top',TOP);syncTop();dirty=true});
+syncTop();
 
 /* ---------- UI ---------- */
 const tip=$('tip');
