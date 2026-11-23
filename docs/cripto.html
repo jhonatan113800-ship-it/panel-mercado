@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cripto · Mapa de calor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE: terminal de trading sobria, el dato manda
+   IDEA: el mapa de calor del mercado cripto, como en una mesa de dinero
+   PICTURE: el treemap a toda la pantalla
+   COLOUR and TYPE: fondo tinta, rojo/verde de mercado, naranja como acento; Outfit + Inter
+   LAYOUT: resumen arriba, mapa, luego subidas/bajadas y ajustes */
+:root{color-scheme:light dark;--bg:light-dark(#f4f6f9,#0d1117);--panel:light-dark(#ffffff,#161b22);--ink:light-dark(#111827,#e6edf3);--mute:light-dark(#5b6472,#8b949e);--line:light-dark(#dde2e9,#262d37);--up:#1f9d55;--dn:#d63a3a;--acc:#ff7a1a}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 Inter,system-ui,sans-serif;overflow-x:clip}
+h1{font:600 clamp(22px,3vw,30px)/1.1 Outfit,sans-serif;margin:0}
+.top{display:flex;flex-wrap:wrap;gap:12px 28px;align-items:end;justify-content:space-between;padding:16px max(2vw,12px) 10px}
+.kpis{display:flex;flex-wrap:wrap;gap:6px 22px;margin-top:6px}
+.kpi b{font:600 20px Outfit,sans-serif;white-space:nowrap}.kpi span{display:block;color:var(--mute);font-size:12.5px}
+.ctrl{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;border-radius:0}
+button{font:500 14px Inter,sans-serif;min-height:38px;padding:0 14px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
+button[aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+#status{color:var(--mute);font-size:13px;padding:0 max(2vw,12px) 8px;display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--mute);margin-right:6px;vertical-align:1px}
+.dot.on{background:var(--up);box-shadow:0 0 0 3px color-mix(in srgb,var(--up) 30%,transparent)}
+.legend{display:flex;align-items:center;gap:6px}.legend i{display:block;width:150px;height:10px;border-radius:3px;background:linear-gradient(90deg,#d63a3a,#8c2f35,#3a3f48,#1d6b42,#1f9d55)}
+#map{position:relative;margin:0 max(2vw,12px);height:calc(100vh - 150px);min-height:460px;background:#0b0e13;border-radius:10px;overflow:hidden}
+.t{position:absolute;border:1px solid #0b0e13;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;overflow:hidden;text-align:center;line-height:1.1;transition:background-color .6s}
+.t b{font-family:Outfit,sans-serif;font-weight:600}.t small{opacity:.92;font-variant-numeric:tabular-nums}
+#tip{position:fixed;pointer-events:none;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:13px;box-shadow:0 8px 24px #0006;display:none;z-index:9;min-width:200px}
+#tip b{font:600 15px Outfit,sans-serif}#tip .r{display:flex;justify-content:space-between;gap:16px}#tip .r span{color:var(--mute)}
+.below{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px;padding:16px max(2vw,12px) 40px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.card h2{font:600 16px Outfit,sans-serif;margin:0 0 8px}
+.row{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+.row:first-of-type{border-top:0}.row em{font-style:normal;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.up{color:var(--up)}.dn{color:var(--dn)}
+input[type=text]{font:16px Inter,sans-serif;width:100%;min-height:44px;padding:0 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+label.ck{display:flex;gap:8px;align-items:center;min-height:36px;cursor:pointer}
+.note{color:var(--mute);font-size:12.5px}
+@media(max-width:600px){#map{height:70vh;min-height:520px}.legend i{width:90px}}
+@media(prefers-reduced-motion:reduce){.t{transition:none}}
+</style>
+</head>
+<body>
+<div class="top">
+  <div>
+    <a href="index.html" style="color:var(--mute);font-size:13px;text-decoration:none">← Panel de mercado</a>
+    <h1>Cripto · mapa de calor</h1>
+    <div class="kpis">
+      <div class="kpi"><b id="kChg">—</b><span id="kChgL">variación ponderada 24 h</span></div>
+      <div class="kpi"><b id="kBreadth">—</b><span>suben / bajan</span></div>
+      <div class="kpi"><b id="kDom">—</b><span>dominancia de Bitcoin (del top mostrado)</span></div>
+      <div class="kpi"><b id="kCap">—</b><span>capitalización total mostrada</span></div>
+    </div>
+  </div>
+  <div class="ctrl">
+    <div class="seg" role="group" aria-label="Periodo del color">
+      <button data-p="1h">1 h</button><button data-p="24h">24 h</button><button data-p="7d">7 d</button>
+    </div>
+    <div class="seg" role="group" aria-label="Cantidad">
+      <button data-n="50">Top 50</button><button data-n="100">Top 100</button>
+    </div>
+  </div>
+</div>
+<div id="status"><span><span class="dot" id="wsDot"></span><span id="wsTxt">Conectando…</span></span><span id="upd"></span><span class="legend" id="leg">−5% <i></i> +5%</span></div>
+<div id="map" aria-label="Mapa de calor del mercado cripto"></div>
+<div id="tip"></div>
+<div class="below">
+  <div class="card"><h2 id="gT">Mayores subidas</h2><div id="gain"></div></div>
+  <div class="card"><h2 id="lT">Mayores bajadas</h2><div id="lose"></div></div>
+  <div class="card"><h2>Ajustes</h2>
+    <label class="ck"><input type="checkbox" id="cStable"> Ocultar stablecoins (USDT, USDC…)</label>
+    <label class="ck"><input type="checkbox" id="cWrap"> Ocultar tokens envueltos o en staking (WBTC, stETH…)</label>
+    <p class="note" style="margin:10px 0 4px">Clave de CoinGecko (opcional; sin ella también funciona, solo refresca un poco menos seguido):</p>
+    <input type="text" id="cgKey" autocomplete="off" placeholder="Demo API key de CoinGecko">
+    <p class="note">Capitalización, 1 h y 7 d: CoinGecko, refrescado cada pocos minutos. Precio y 24 h en vivo: Binance (pares contra USDT). Las monedas que no cotizan en Binance se actualizan solo con CoinGecko.</p>
+  </div>
+</div>
+
+<script>
+{
+const $=id=>document.getElementById(id);
+const ls={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+let period=ls.get('cr_p','24h'),N=ls.get('cr_n',100),hideStable=ls.get('cr_st',true),hideWrap=ls.get('cr_wr',true),CGK=ls.get('cr_cg','');
+let coins=[],bySym={},dirty=true,lastUpd=null,ws=null,liveCount=0;
+const STABLE=/^(usdt|usdc|dai|usde|usds|fdusd|pyusd|tusd|usd1|busd|rlusd|usdtb|usd0|gho|frax|lusd|usdd|usdp|crvusd|susde|susds|eurc|eurs|xaut|paxg|bsc-usd|buidl|usdf|usyc|syrupusdc)$/i;
+const WRAP=/(wrapped|staked|bridged|liquid staked|restaked|wbtc|steth|weeth|cbbtc|lbtc|solvbtc|meth|rseth|jitosol|msol|bnsol|ezeth)/i;
+const isStable=c=>STABLE.test(c.symbol)||(/usd|dollar|euro/i.test(c.name)&&Math.abs((c.current_price||0)-1)<0.03);
+const isWrap=c=>WRAP.test(c.name)||WRAP.test(c.id)||/^(wbtc|weth|steth|wsteth|weeth|cbbtc|lbtc|reth|wbeth|meth|ezeth|rseth|jitosol|msol|bnsol|solvbtc|clbtc|tbtc)$/i.test(c.symbol);
+
+/* ---------- CoinGecko ---------- */
+async function loadCG(){
+  const base=CGK?'https://api.coingecko.com/api/v3/':'https://api.coingecko.com/api/v3/';
+  const url=base+'coins/markets?vs_currency=usd&order=market_cap_desc&per_page=150&page=1&price_change_percentage=1h,24h,7d'+(CGK?'&x_cg_demo_api_key='+encodeURIComponent(CGK):'');
+  try{
+    const r=await fetch(url);
+    if(r.status===429){$('upd').textContent='CoinGecko pidió esperar; reintento en 1 min.';return}
+    if(!r.ok){$('upd').textContent='CoinGecko respondió '+r.status+(r.status===401?' (revisa la clave)':'');return}
+    const j=await r.json();
+    const old=bySym;bySym={};
+    coins=j.map(c=>{const sym=c.symbol.toUpperCase();const o={id:c.id,sym,name:c.name,cap:c.market_cap||0,price:c.current_price,
+      p1h:c.price_change_percentage_1h_in_currency,p24:c.price_change_percentage_24h_in_currency??c.price_change_percentage_24h,p7d:c.price_change_percentage_7d_in_currency,
+      vol:c.total_volume,rank:c.market_cap_rank,stable:isStable(c),wrap:isWrap(c),live:false};
+      const p=old[sym];if(p&&p.live&&p.id===o.id){o.price=p.price;o.p24=p.p24;o.live=true;o.open=p.open}
+      if(!bySym[sym])bySym[sym]=o;return o});
+    lastUpd=new Date();dirty=true;
+  }catch(e){$('upd').textContent='No se pudo conectar con CoinGecko. Reintento en 1 min.'}
+}
+function schedule(){const ms=CGK?120000:180000;setTimeout(async()=>{await loadCG();schedule()},ms)}
+
+/* ---------- Binance en vivo ---------- */
+function openWS(){
+  try{ws=new WebSocket('wss://stream.binance.com:9443/ws/!miniTicker@arr')}catch(e){ws=null;return}
+  const me=ws;
+  ws.onopen=()=>{$('wsDot').className='dot on';$('wsTxt').textContent='En vivo vía Binance'};
+  ws.onmessage=e=>{let a;try{a=JSON.parse(e.data)}catch(x){return}if(!Array.isArray(a))return;
+    for(const t of a){if(!t.s.endsWith('USDT'))continue;const c=bySym[t.s.slice(0,-4)];if(!c||c.stable)continue;
+      const p=+t.c,o=+t.o;if(!p||!o)continue;
+      /* descarta pares que no sean la misma moneda (precio muy distinto al de CoinGecko) */
+      if(!c.live&&c.price&&Math.abs(p/c.price-1)>0.15)continue;
+      c.price=p;c.open=o;c.p24=(p-o)/o*100;c.live=true}
+    liveCount=coins.filter(c=>c.live).length;lastUpd=new Date();dirty=true};
+  ws.onclose=()=>{if(ws!==me)return;ws=null;$('wsDot').className='dot';$('wsTxt').textContent='Streaming desconectado, reintentando…';for(const c of coins)c.live=false;setTimeout(openWS,5000)};
+  ws.onerror=()=>{try{me.close()}catch(e){}};
+}
+
+/* ---------- Treemap ---------- */
+function worst(row,side){let sum=0,mx=0,mn=Infinity;for(const r of row){sum+=r.a;mx=Math.max(mx,r.a);mn=Math.min(mn,r.a)}const s2=side*side,q=sum*sum;return Math.max(s2*mx/q,q/(s2*mn))}
+function squarify(items,x,y,w,h){
+  const out=[],tot=items.reduce((a,b)=>a+b.v,0);if(!tot||w<=1||h<=1)return out;
+  const sc=w*h/tot;let rest=items.map(it=>({it,a:it.v*sc}));
+  while(rest.length){
+    const side=Math.min(w,h);let row=[rest[0]],i=1;
+    while(i<rest.length){const nr=row.concat(rest[i]);if(worst(nr,side)<=worst(row,side)){row=nr;i++}else break}
+    const ra=row.reduce((a,b)=>a+b.a,0),th=ra/side;let off=0;
+    for(const r of row){const L=r.a/th;out.push(w>=h?{it:r.it,x,y:y+off,w:th,h:L}:{it:r.it,x:x+off,y,w:L,h:th});off+=L}
+    if(w>=h){x+=th;w-=th}else{y+=th;h-=th}
+    rest=rest.slice(i);
+  }
+  return out;
+}
+const RANGE={'1h':1.5,'24h':5,'7d':15};
+const chg=c=>period==='1h'?c.p1h:period==='7d'?c.p7d:c.p24;
+function col(dp){if(dp==null||isNaN(dp))return'#3a3f48';const t=Math.max(-1,Math.min(1,dp/RANGE[period]));
+  const mix=(a,b,k)=>a.map((v,i)=>Math.round(v+(b[i]-v)*k));const n=[58,63,72];
+  const c=t>=0?mix(n,[31,157,85],Math.pow(t,.8)):mix(n,[214,58,58],Math.pow(-t,.8));return`rgb(${c})`}
+const pct=v=>v==null||isNaN(v)?'—':(v>0?'+':'')+v.toFixed(2)+'%';
+const money=v=>v==null?'—':'$'+(v>=1?v.toLocaleString('en-US',{maximumFractionDigits:2}):v.toPrecision(4));
+const big=m=>!m?'—':m>=1e12?'$'+(m/1e12).toFixed(2)+' B':m>=1e9?'$'+(m/1e9).toFixed(1)+' mil M':'$'+(m/1e6).toFixed(0)+' M';
+const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const shown=()=>coins.filter(c=>!(hideStable&&c.stable)&&!(hideWrap&&c.wrap)).slice(0,N);
+function tile(r){const c=r.it.c,w=r.w,h=r.h;let inner='';const d=chg(c);
+  const fs=Math.max(9,Math.min(36,w/4.2,h/2.6));
+  if(w>26&&h>14){inner=`<b style="font-size:${fs.toFixed(1)}px">${esc(c.sym)}</b>`;if(h>fs*2.3&&w>38)inner+=`<small style="font-size:${Math.max(9,fs*.6).toFixed(1)}px">${pct(d)}</small>`;if(h>fs*3.6&&w>70)inner+=`<small style="font-size:${Math.max(9,fs*.5).toFixed(1)}px">${money(c.price)}</small>`}
+  return`<div class="t" data-i="${esc(c.id)}" style="left:${r.x.toFixed(1)}px;top:${r.y.toFixed(1)}px;width:${r.w.toFixed(1)}px;height:${r.h.toFixed(1)}px;background:${col(d)}">${inner}</div>`}
+function render(){
+  const m=$('map'),W=m.clientWidth,H=m.clientHeight;if(!W||!H)return;
+  const a=shown();
+  m.innerHTML=a.length?squarify(a.map(c=>({c,v:c.cap})),0,0,W,H).map(tile).join(''):'<p class="note" style="padding:20px;color:#8b949e">Cargando datos de CoinGecko…</p>';
+  summary(a);
+}
+function summary(a){
+  const q=a.filter(c=>chg(c)!=null&&!isNaN(chg(c)));const tw=q.reduce((x,c)=>x+c.cap,0);
+  const w=tw?q.reduce((x,c)=>x+c.cap*chg(c),0)/tw:null;
+  const k=$('kChg');k.textContent=pct(w);k.className=w>0?'up':w<0?'dn':'';
+  $('kChgL').textContent='variación ponderada '+({'1h':'1 h','24h':'24 h','7d':'7 días'}[period]);
+  const up=q.filter(c=>chg(c)>0).length,dn=q.filter(c=>chg(c)<0).length;
+  $('kBreadth').innerHTML=q.length?`<span class="up">${up}</span> / <span class="dn">${dn}</span>`:'—';
+  const tot=a.reduce((x,c)=>x+c.cap,0),btc=a.find(c=>c.id==='bitcoin');
+  $('kDom').textContent=btc&&tot?(btc.cap/tot*100).toFixed(1)+'%':'—';$('kCap').textContent=big(tot);
+  const s=[...q].sort((x,y)=>chg(y)-chg(x));
+  const row=c=>`<div class="row"><span><b>${esc(c.sym)}</b> <em>${esc(c.name)}</em></span><span class="${chg(c)>0?'up':'dn'}">${pct(chg(c))}</span></div>`;
+  $('gain').innerHTML=s.slice(0,6).filter(c=>chg(c)>0).map(row).join('')||'<p class="note">Nada en verde en este periodo.</p>';
+  $('lose').innerHTML=s.slice(-6).reverse().filter(c=>chg(c)<0).map(row).join('')||'<p class="note">Nada en rojo en este periodo.</p>';
+  const pl={'1h':'1 h','24h':'24 h','7d':'7 d'}[period];$('gT').textContent='Mayores subidas · '+pl;$('lT').textContent='Mayores bajadas · '+pl;
+  $('leg').innerHTML=`−${RANGE[period]}% <i></i> +${RANGE[period]}%`;
+  if(liveCount)$('wsTxt').textContent=`En vivo vía Binance: ${liveCount} monedas`;
+  $('upd').textContent=lastUpd?'Última actualización '+lastUpd.toLocaleTimeString('es-PE'):'';
+}
+
+/* ---------- UI ---------- */
+const tip=$('tip');
+$('map').addEventListener('mousemove',e=>{const t=e.target.closest('.t');if(!t){tip.style.display='none';return}
+  const c=coins.find(x=>x.id===t.dataset.i);if(!c)return;
+  tip.innerHTML=`<b>${esc(c.sym)}</b> <span class="note">${esc(c.name)} · #${c.rank||'—'}</span>
+  <div class="r"><span>Precio</span>${money(c.price)}</div>
+  <div class="r"><span>1 h</span><span class="${c.p1h>0?'up':'dn'}">${pct(c.p1h)}</span></div>
+  <div class="r"><span>24 h</span><span class="${c.p24>0?'up':'dn'}">${pct(c.p24)}</span></div>
+  <div class="r"><span>7 d</span><span class="${c.p7d>0?'up':'dn'}">${pct(c.p7d)}</span></div>
+  <div class="r"><span>Capitalización</span>${big(c.cap)}</div><div class="r"><span>Volumen 24 h</span>${big(c.vol)}</div>
+  <div class="r"><span>Fuente precio</span>${c.live?'Binance en vivo':'CoinGecko'}</div>`;
+  tip.style.display='block';tip.style.left=Math.min(e.clientX+14,innerWidth-tip.offsetWidth-8)+'px';tip.style.top=Math.min(e.clientY+14,innerHeight-tip.offsetHeight-8)+'px'});
+$('map').addEventListener('mouseleave',()=>tip.style.display='none');
+function syncBtns(){document.querySelectorAll('[data-p]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.p===period));
+  document.querySelectorAll('[data-n]').forEach(b=>b.setAttribute('aria-pressed',+b.dataset.n===N))}
+document.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{period=b.dataset.p;ls.set('cr_p',period);syncBtns();dirty=true});
+document.querySelectorAll('[data-n]').forEach(b=>b.onclick=()=>{N=+b.dataset.n;ls.set('cr_n',N);syncBtns();dirty=true});
+$('cStable').checked=hideStable;$('cWrap').checked=hideWrap;$('cgKey').value=CGK;
+$('cStable').onchange=e=>{hideStable=e.target.checked;ls.set('cr_st',hideStable);dirty=true};
+$('cWrap').onchange=e=>{hideWrap=e.target.checked;ls.set('cr_wr',hideWrap);dirty=true};
+$('cgKey').onchange=e=>{CGK=e.target.value.trim();ls.set('cr_cg',CGK);loadCG()};
+const ro=new ResizeObserver(()=>{dirty=true});ro.observe($('map'));
+setInterval(()=>{if(dirty){dirty=false;render()}},700);
+syncBtns();
+loadCG().then(()=>{openWS();schedule()});
+}
+</script>
+</body>
+</html>

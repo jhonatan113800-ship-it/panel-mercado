@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Panel de mercado</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE: terminal de riesgo sobria, el dato manda
+   IDEA: el semáforo de riesgo de una mesa de dinero antes de la apertura
+   PICTURE: el medidor de estrés con su régimen y el histórico coloreado
+   COLOUR and TYPE: fondo tinta; verde/ámbar/rojo solo para el régimen; Outfit + Inter
+   LAYOUT: régimen arriba, calculadora, luego volatilidad por acción y validación */
+:root{color-scheme:light dark;--bg:light-dark(#f4f6f9,#0d1117);--panel:light-dark(#fff,#161b22);--ink:light-dark(#111827,#e6edf3);--mute:light-dark(#5b6472,#8b949e);--line:light-dark(#dde2e9,#262d37);--calma:#2da44e;--tension:#d4a72c;--panico:#cf222e;--acc:#ff7a1a}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:15.5px/1.5 Inter,system-ui,sans-serif;overflow-x:clip}
+h1,h2{font-family:Outfit,sans-serif;margin:0}h1{font-size:clamp(24px,3.4vw,34px);line-height:1.05}h2{font-size:19px;margin-bottom:10px}
+nav{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;justify-content:space-between;padding:14px max(3vw,14px);border-bottom:1px solid var(--line)}
+nav a{color:var(--mute);text-decoration:none;font-weight:500;padding:6px 0}nav a.on{color:var(--ink);border-bottom:2px solid var(--acc)}
+.links{display:flex;gap:18px;flex-wrap:wrap}
+.wrap{max-width:1240px;margin:0 auto;padding:0 max(3vw,14px)}
+.hero{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:22px;padding:22px 0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+.reg{font:700 clamp(40px,6vw,64px)/1 Outfit,sans-serif;margin:6px 0 4px}
+.sub{color:var(--mute);font-size:13.5px}
+.gauge{position:relative;height:16px;border-radius:8px;margin:22px 0 26px;background:linear-gradient(90deg,var(--calma) 0 var(--t50),var(--tension) var(--t50) var(--t90),var(--panico) var(--t90) 100%)}
+.gauge .pin{position:absolute;top:-7px;width:4px;height:30px;background:var(--ink);border-radius:2px;transform:translateX(-2px)}
+.gauge .lab{position:absolute;top:22px;font-size:12px;color:var(--mute);transform:translateX(-50%);white-space:nowrap}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-top:6px}
+.kpi b{display:block;font:600 21px Outfit,sans-serif;white-space:nowrap}.kpi span{color:var(--mute);font-size:12.5px}
+.meaning{font-size:15.5px;margin:12px 0 0}
+.fig{position:relative;min-height:300px}.fig>svg{position:absolute;inset:0;width:100%;height:100%}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:14.5px}
+th{font:600 12.5px Inter,sans-serif;color:var(--mute);text-align:right;padding:8px 10px;border-bottom:2px solid var(--line);white-space:nowrap}
+td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th.l,td.l{text-align:left}th[data-k]{cursor:pointer;user-select:none}th.on{color:var(--ink)}
+tr.cur td{background:color-mix(in srgb,var(--acc) 12%,transparent);font-weight:600}
+.scroll{overflow-x:auto}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;vertical-align:0}
+.bar{display:inline-block;height:8px;border-radius:4px;vertical-align:middle;margin-left:8px}
+.up{color:var(--calma)}.dn{color:var(--panico)}
+section{padding:6px 0 22px}
+.calc{display:grid;grid-template-columns:minmax(0,320px) minmax(0,1fr);gap:20px}
+label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
+input[type=number],input[type=text]{font:16px Inter,sans-serif;width:100%;min-height:44px;padding:0 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.ck{display:flex;gap:8px;align-items:center;min-height:40px;color:var(--ink);font-size:14.5px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.chip{font:500 13px Inter,sans-serif;min-height:34px;padding:0 11px;border-radius:17px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+.chip[aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.note{color:var(--mute);font-size:12.5px}
+.warn{border-left:3px solid var(--acc);padding:6px 12px;margin:10px 0;font-size:14px}
+#err{display:none;padding:30px 0}
+@media(max-width:860px){.hero,.calc{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:600px){table{font-size:13px}td,th{padding:7px 6px}}
+</style>
+</head>
+<body>
+<nav><strong style="font-family:Outfit;font-size:17px">Panel de mercado</strong>
+  <div class="links"><a href="index.html" class="on">Régimen y riesgo</a><a href="mapa.html">Mapa Nasdaq-100</a><a href="cripto.html">Mapa cripto</a></div></nav>
+<div class="wrap">
+<div id="err" class="card"><h2>Todavía no hay datos</h2><p>No se encontró <code>datos.json</code>. Ejecuta la acción <b>Actualizar panel</b> en la pestaña <i>Actions</i> de tu repositorio y vuelve en unos minutos.</p></div>
+<div id="app" style="display:none">
+<div class="hero">
+  <div class="card">
+    <div class="sub" id="fecha"></div>
+    <div class="sub" style="margin-top:8px">Régimen de mercado</div>
+    <div class="reg" id="reg"></div>
+    <div class="gauge" id="gauge"></div>
+    <div class="kpis" id="kpis"></div>
+    <p class="meaning" id="meaning"></p>
+  </div>
+  <div class="card"><h2>Nasdaq y estrés · últimos 2 años</h2><div class="fig" id="fig"><svg id="svg"></svg></div>
+    <div class="note"><span class="dot" style="background:var(--calma)"></span>Calma <span class="dot" style="background:var(--tension);margin-left:10px"></span>Tensión <span class="dot" style="background:var(--panico);margin-left:10px"></span>Pánico · líneas punteadas: umbrales de cada día</div></div>
+</div>
+
+<section class="card"><h2>Cómo se comportó el Nasdaq en cada régimen (desde 2019, fuera de muestra)</h2>
+  <div class="scroll"><table><thead><tr><th class="l">Régimen</th><th>% de días</th><th>QQQ 5 días prom.</th><th>Semanas positivas</th><th>Peor 5% de semanas</th><th>Mejor 5% de semanas</th><th>Rango diario prom.</th></tr></thead><tbody id="treg"></tbody></table></div>
+  <p class="note">El régimen <b>no</b> predice la dirección: en los tres el promedio es parecido. Predice el <b>tamaño</b> de los movimientos. Úsalo para decidir cuánto arriesgar, no si comprar.</p>
+</section>
+
+<section class="card"><h2>Calculadora de tamaño de posición</h2>
+  <div class="calc">
+    <div>
+      <label for="cap">Capital ($)</label><input type="number" id="cap" min="0" step="100">
+      <label for="rk">Riesgo por operación (% del capital)</label><input type="number" id="rk" min="0" step="0.1">
+      <label for="mult">Stop = rango esperado ×</label><input type="number" id="mult" min="0.1" step="0.1">
+      <label for="mx">Máximo por posición (% del capital)</label><input type="number" id="mx" min="1" step="1">
+      <label class="ck"><input type="checkbox" id="half"> Reducir el riesgo a la mitad en Pánico</label>
+      <label>Acciones</label><div class="chips" id="chips"></div>
+    </div>
+    <div>
+      <div class="warn" id="rinfo"></div>
+      <div class="scroll"><table><thead><tr><th class="l">Acción</th><th>Precio ref.</th><th>Stop %</th><th>Stop en $</th><th>Acciones</th><th>Monto</th><th>% capital</th><th>Pérdida al stop</th></tr></thead><tbody id="tcalc"></tbody></table></div>
+      <p class="note">Precio de referencia = último cierre. En la apertura, aplica el mismo <b>stop %</b> sobre tu precio real de entrada. Herramienta de cálculo, no recomendación de compra.</p>
+    </div>
+  </div>
+</section>
+
+<section class="card"><h2>Volatilidad esperada para la próxima sesión</h2>
+  <div class="scroll"><table><thead><tr><th class="l" data-k="nombre">Empresa</th><th data-k="precio">Último</th><th data-k="var_dia">Var. día</th><th data-k="rango_esperado">Rango esperado</th><th data-k="rango_normal">Normal (1 año)</th><th data-k="vs_normal" class="l">vs. normal</th></tr></thead><tbody id="tvol"></tbody></table></div>
+  <p class="note">Rango esperado = distancia entre máximo y mínimo del día, en %. Toca un encabezado para ordenar.</p>
+</section>
+
+<section><p class="note" id="valid"></p>
+<p class="note">Se actualiza solo cada día hábil antes de la apertura (GitHub Actions). Herramienta de estudio y referencia; no es asesoría de inversión.</p></section>
+</div></div>
+
+<script>
+{
+const $=id=>document.getElementById(id);
+const ls={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const COL={'Calma':'var(--calma)','Tensión':'var(--tension)','Pánico':'var(--panico)'};
+const HEX={'Calma':'#2da44e','Tensión':'#d4a72c','Pánico':'#cf222e'};
+const f2=(v,d=2)=>v==null||isNaN(v)?'—':Number(v).toLocaleString('es-PE',{minimumFractionDigits:d,maximumFractionDigits:d});
+const sg=v=>v==null?'—':(v>0?'+':'')+f2(v)+'%';
+const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let D=null,sortK='vs_normal',sortDir=-1;
+
+fetch('datos.json?'+Date.now()).then(r=>{if(!r.ok)throw 0;return r.json()}).then(d=>{D=d;init()}).catch(()=>{$('err').style.display='block'});
+
+function init(){
+  $('app').style.display='block';
+  const r=D.regimen;
+  $('fecha').textContent=`Datos al cierre del ${D.fecha_datos} · actualizado ${D.generado_utc} UTC${D.simulado?' · DATOS SIMULADOS DE PRUEBA':''}`;
+  $('reg').textContent=r;$('reg').style.color=COL[r];
+  const g=$('gauge');g.style.setProperty('--t50',D.umbral_tension*100+'%');g.style.setProperty('--t90',D.umbral_panico*100+'%');
+  g.innerHTML=`<div class="pin" style="left:${D.estres*100}%"></div><div class="lab" style="left:${Math.min(92,Math.max(8,D.estres*100))}%">estrés ${f2(D.estres)}</div>`;
+  const m=D.mercado,q=D.volatilidad.find(x=>x.ticker==='QQQ');
+  $('kpis').innerHTML=[[f2(m.vix,1),'VIX'],[f2(m.vix_estructura),'VIX / VIX 3 meses'+(m.vix_estructura>1?' (invertido)':'')],
+    [f2(m.amplitud,0)+'%','acciones sobre su media 50d'],[sg(m.nasdaq_vs_media200),'Nasdaq vs. media 200d'],
+    [q?f2(q.rango_esperado)+'%':'—','rango esperado del QQQ']].map(([b,s])=>`<div class="kpi"><b>${b}</b><span>${s}</span></div>`).join('');
+  const t=D.tabla_regimen.find(x=>x.regimen===r);
+  const txt={'Calma':'Movimientos contenidos. Riesgo normal.','Tensión':'Movimientos más amplios de lo habitual. Considera stops más anchos y posiciones algo menores.','Pánico':'Movimientos grandes en ambas direcciones: no significa que vaya a caer, sino que el rango se dispara. La calculadora reduce el riesgo a la mitad.'}[r];
+  $('meaning').innerHTML=txt+(t?` En este régimen, desde 2019 el peor 5% de las semanas del QQQ fue <b class="dn">${sg(t.peor_5pct)}</b> y el mejor 5% <b class="up">${sg(t.mejor_5pct)}</b>; ${f2(t.semanas_positivas,0)}% de las semanas terminaron en positivo.`:'');
+  $('treg').innerHTML=D.tabla_regimen.map(x=>`<tr class="${x.regimen===r?'cur':''}"><td class="l"><span class="dot" style="background:${COL[x.regimen]}"></span>${x.regimen}${x.regimen===r?' (hoy)':''}</td><td>${f2(x.pct_dias,1)}%</td><td>${sg(x.qqq_5d_prom)}</td><td>${f2(x.semanas_positivas,0)}%</td><td class="dn">${sg(x.peor_5pct)}</td><td class="up">${sg(x.mejor_5pct)}</td><td>${f2(x.rango_diario)}%</td></tr>`).join('');
+  $('valid').textContent='Modelo de volatilidad: '+(D.modelo_vol==='boosting'?'boosting (HAR + VIX, gap, amplitud…)':'HAR clásico')+' · R² fuera de muestra: '+D.validacion_vol.map(v=>`${v.anio}: ${f2(v.r2_modelo,3)} (HAR ${f2(v.r2_har,3)})`).join(' · ');
+  initCalc();renderVol();
+  const ro=new ResizeObserver(draw);ro.observe($('fig'));
+  document.querySelectorAll('th[data-k]').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(sortK===k)sortDir=-sortDir;else{sortK=k;sortDir=k==='nombre'?1:-1}renderVol()});
+}
+
+function draw(){
+  const s=$('svg'),W=s.clientWidth,H=s.clientHeight;if(!W||!H||!D)return;
+  const h=D.historia,n=h.length,pad=4,top=H*0.62,mid=top+14;
+  const qs=h.map(x=>x.q).filter(v=>v!=null),qmin=Math.min(...qs),qmax=Math.max(...qs);
+  const X=i=>pad+i/(n-1)*(W-2*pad),Yq=v=>pad+(1-(v-qmin)/(qmax-qmin||1))*(top-pad*2),Ye=v=>mid+(1-v)*(H-mid-pad);
+  let out='';
+  // fondo por régimen en el panel superior
+  let start=0;for(let i=1;i<=n;i++){if(i===n||h[i].r!==h[start].r){if(h[start].r&&h[start].r!=='Calma')out+=`<rect x="${X(start)}" y="0" width="${Math.max(1,X(i-1)-X(start)+1)}" height="${top}" fill="${HEX[h[start].r]}" opacity=".16"/>`;start=i}}
+  out+=`<path d="${h.map((x,i)=>(i?'L':'M')+X(i).toFixed(1)+','+Yq(x.q).toFixed(1)).join('')}" fill="none" stroke="currentColor" stroke-width="1.4"/>`;
+  out+=`<path d="${h.map((x,i)=>(i?'L':'M')+X(i).toFixed(1)+','+Ye(x.u90).toFixed(1)).join('')}" fill="none" stroke="#cf222e" stroke-dasharray="4 3" stroke-width="1"/>`;
+  out+=`<path d="${h.map((x,i)=>(i?'L':'M')+X(i).toFixed(1)+','+Ye(x.u50).toFixed(1)).join('')}" fill="none" stroke="#d4a72c" stroke-dasharray="4 3" stroke-width="1"/>`;
+  out+=`<path d="${h.map((x,i)=>(i?'L':'M')+X(i).toFixed(1)+','+Ye(x.e).toFixed(1)).join('')}" fill="none" stroke="var(--mute)" stroke-width="1.2"/>`;
+  out+=`<circle cx="${X(n-1)}" cy="${Ye(h[n-1].e)}" r="4" fill="${HEX[D.regimen]}"/>`;
+  out+=`<text x="${pad}" y="${top-6}" font-size="11" fill="var(--mute)">QQQ</text><text x="${pad}" y="${mid-3}" font-size="11" fill="var(--mute)">Estrés (0–1)</text>`;
+  if(W>420){out+=`<text x="${pad}" y="${H-2}" font-size="11" fill="var(--mute)">${h[0].f}</text><text x="${W-pad}" y="${H-2}" font-size="11" fill="var(--mute)" text-anchor="end">${h[n-1].f}</text>`}
+  s.setAttribute('viewBox',`0 0 ${W} ${H}`);s.style.color='var(--ink)';s.innerHTML=out;
+}
+
+function renderVol(){
+  const rows=[...D.volatilidad].sort((a,b)=>{const p=a[sortK],q=b[sortK];return sortK==='nombre'?sortDir*String(p).localeCompare(String(q)):sortDir*((p??-1e9)-(q??-1e9))});
+  $('tvol').innerHTML=rows.map(x=>{const v=x.vs_normal||0,c=v>=2?'#cf222e':v>=1.3?'#d4a72c':'#2da44e';
+    return`<tr${x.indice?' style="font-weight:600"':''}><td class="l">${esc(x.nombre)} <span class="note">${x.ticker}</span></td><td>${f2(x.precio)}</td><td class="${x.var_dia>0?'up':x.var_dia<0?'dn':''}">${sg(x.var_dia)}</td><td>${f2(x.rango_esperado)}%</td><td>${f2(x.rango_normal)}%</td><td class="l">${f2(v)}×<span class="bar" style="width:${Math.min(120,v*36)}px;background:${c}"></span></td></tr>`}).join('');
+  document.querySelectorAll('th[data-k]').forEach(th=>th.classList.toggle('on',th.dataset.k===sortK));
+}
+
+function initCalc(){
+  const S=ls.get('panel_calc',{cap:10000,rk:1,mult:1,mx:25,half:true,sel:['NVDA','AAPL','MSFT','AMZN','META','GOOGL','QQQ']});
+  $('cap').value=S.cap;$('rk').value=S.rk;$('mult').value=S.mult;$('mx').value=S.mx;$('half').checked=S.half;
+  let sel=new Set(S.sel);
+  const byT=Object.fromEntries(D.volatilidad.map(x=>[x.ticker,x]));
+  const order=[...D.volatilidad].sort((a,b)=>(b.indice-a.indice)||a.ticker.localeCompare(b.ticker));
+  $('chips').innerHTML=order.map(x=>`<button class="chip" data-t="${x.ticker}" aria-pressed="${sel.has(x.ticker)}">${x.ticker}</button>`).join('');
+  $('chips').onclick=e=>{const b=e.target.closest('.chip');if(!b)return;const t=b.dataset.t;sel.has(t)?sel.delete(t):sel.add(t);b.setAttribute('aria-pressed',sel.has(t));calc()};
+  ['cap','rk','mult','mx','half'].forEach(id=>$(id).addEventListener('input',calc));
+  function calc(){
+    const cap=+$('cap').value||0,rk=(+$('rk').value||0)/100,mult=+$('mult').value||1,mx=(+$('mx').value||100)/100,half=$('half').checked;
+    ls.set('panel_calc',{cap,rk:rk*100,mult,mx:mx*100,half,sel:[...sel]});
+    const r=rk*(half&&D.regimen==='Pánico'?0.5:1);
+    $('rinfo').innerHTML=`Régimen <b style="color:${COL[D.regimen]}">${D.regimen}</b> · riesgo aplicado por operación: <b>${f2(r*100)}%</b> = <b>$${f2(cap*r,0)}</b>${half&&D.regimen==='Pánico'?' (reducido a la mitad)':''}`;
+    const rows=[...sel].filter(t=>byT[t]).map(t=>{const x=byT[t],stop=x.rango_esperado/100*mult;let n=Math.floor(cap*r/(x.precio*stop));const lim=Math.floor(cap*mx/x.precio);const cap_=n>lim;n=Math.min(n,lim);
+      return`<tr><td class="l">${esc(x.nombre)} <span class="note">${t}</span></td><td>${f2(x.precio)}</td><td>${f2(stop*100)}%</td><td>${f2(x.precio*(1-stop))}</td><td><b>${n}</b>${cap_?' <span class="note">(tope)</span>':''}</td><td>$${f2(n*x.precio,0)}</td><td>${f2(n*x.precio/cap*100,1)}%</td><td class="dn">$${f2(n*x.precio*stop,0)}</td></tr>`});
+    $('tcalc').innerHTML=rows.join('')||'<tr><td class="l" colspan="8">Elige acciones en la lista.</td></tr>';
+  }
+  calc();
+}
+}
+</script>
+</body>
+</html>
